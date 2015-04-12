@@ -297,8 +297,8 @@ void backspace(){
 }
 
 void doCommands(char** args, char* dir, vector<string> history){
-  cout << "in the command function" << endl;
-  cout << args[0] << endl;
+  //cout << "in the command function" << endl;
+  //cout << args[0] << endl;
   if(strcmp(args[0], "history") == 0){
     if(args[1] == NULL){
       getHistory(history);
@@ -489,7 +489,7 @@ int main(){
         }
         if(it != listInput.end() - 1){
           pipe(pipe_fd);
-        }
+        } // want to pipe every time it's not the end
   
         args = new char*[(int)commands.size() + 1];
         for(int i = 0; i < (int) commands.size() + 1; i++){
@@ -499,17 +499,21 @@ int main(){
 
             if(strcmp(args[0], "cd") == 0){
               changeDirectory(dir, args);
-            }
+            } 
             else if (strcmp(args[0], "exit") == 0){
               exit(0);
             }
             // check to see if there's any redirection
-            
 
             pid = fork();   
             //pipe(pipe_fd);
             if(pid == 0){
-              cout << "child " << pid << endl;
+              //dup2(pipe_fd[1], 1);
+              //close(pipe_fd[1]); // close the write end, so not allowed to write
+              /*dup2(1, pipe_fd[0]);
+              close(pipe_fd[0]);
+              close(pipe_fd[1]);*/
+              //cout << "child " << pid << endl;
               
               /*close(0);
               dup2(pipe_fd[0], 0);
@@ -522,11 +526,14 @@ int main(){
               close(pipe_fd[1]);
               */
               doCommands(args, dir, history); 
+              /*close(0);
+              close(1);*/
               //cout << "Helloooo" << endl;
               /*close(0);
               close(1); */
               //exit(1);
-              exit(0);
+              //exit(0);
+              //close(pipe_fd[0]);
             }
             else if(pid < 0){
               write(STDOUT_FILENO, "error\n" , 6);
@@ -542,7 +549,10 @@ int main(){
               close(pipe_fd[0]);
               close(pipe_fd[1]);
               */
+              //write(STDOUT_FILENO, )
+              //close(pipe_fd[0]); // closing the read end
               int status;
+              
               //wait(&status);
               /*do{
                 
@@ -553,11 +563,17 @@ int main(){
               */
 
               //while(wait(&status) && status != pid);
-                
+              
               wait(&status);
               //close(1);
               //cout << "done waiting" << endl;
               //continue;
+              //close(pipe_fd[1]);
+//              dup2(0, pipe_fd[1]);
+/*
+              close(pipe_fd[0]);
+              close(pipe_fd[1]);
+  */            
               continue;
             }//parent
             
