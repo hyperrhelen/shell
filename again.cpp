@@ -252,7 +252,7 @@ void lsDirectory(char* newDir, char** args){
     write(STDOUT_FILENO, pointFile->d_name, strlen(pointFile->d_name));
     write(STDOUT_FILENO, "\n", 1);
   }//while reading the files/directories inside the directory
-  if(flag == true){
+  if(flag = true){
     delete[] dir;
   }
 }
