@@ -91,17 +91,36 @@ char* path(char* dirName){
 }
 
 vector<string> parse(string input){
+
+  //cout << ":( parse no work? " << endl;
+  //cout << input << endl;
   vector<string> parsedString;
   int prev = 0;
   //cout << input << "X" << endl;
   //cout << input.size() << endl;
-  for(int i = 0; i < (int) input.size(); i++){
-    if(i == (int) input.size() - 1){
-      string temp = input.substr(prev, (int)input.size()-prev );
+  int sizeInput = input.size();
+  //cout << "input size: " << sizeInput << endl;
+  for(int i = 0; i < sizeInput + 1; i++){
+    //cout << "i:" << i << endl;
+    if(i == sizeInput - 1){
+      string temp = input.substr(prev, sizeInput-prev);
       parsedString.push_back(temp);
-      //cout << temp <<"4"  << endl;
+      //cout << temp << endl;
     }
-    
+    /*
+    if(i == (int) input.size() - 1){
+      cout << "parse string iff statement" << endl;
+      string temp;
+      if(input[i] == ' '){
+        temp = input.substr(prev, (int)input.size()-prev - 1);
+      }
+      else{
+        temp = input.substr(prev, (int)input.size() - prev);
+      }
+      parsedString.push_back(temp);
+      cout << temp << endl;
+      //cout << temp <<"4"  << endl;
+    }*/
     else if(input[i] == ' '){
       if((input[i-1] == '<' || input[i-1] == '>' || input[i-1] == '|') && i > 0){
         prev = i + 1;
@@ -109,6 +128,7 @@ vector<string> parse(string input){
       else{
         string temp = input.substr(prev, i-prev);
         parsedString.push_back(temp);
+        //cout << temp << endl;
         prev = i+1;  
       }
     } // if space
@@ -116,48 +136,63 @@ vector<string> parse(string input){
       if(input[i-1] != ' '){
         string temp = input.substr(prev, i-prev);
         parsedString.push_back(temp);
+        //cout << temp << endl;
         temp = input.substr(i, 1);
         parsedString.push_back(temp);
+        //cout << temp << endl;
         prev = i+1;  
       }
       else{
         string temp = input.substr(i, 1);
         parsedString.push_back(temp);
+        //cout << temp << endl;
         prev = i+1;
       }
     } // if redirect or pipe
+    //i++;
   }
+  //cout << "finishes" << endl;
+  //cout << "parsed String size : " <<parsedString.size() << endl;
+  //cout << parsedString[0] << endl;
   return parsedString; 
 }
 
 void lsDirectory(char* newDir, char** args){
   char* dir;
   int flag = false;
+  if(args[0] == NULL){
+    return;
+  }
   if(args[1] == NULL){
     // then you're doing it right
     dir = newDir;
+    //cout << newDir << endl;
+      //write(1, dir, strlen(dir));
   }
   else if(args[2] == NULL){
     flag = true;
     //this is going to be the directory name
     //dir = newDir;
     dir = new char(strlen(newDir) + strlen(args[1])+2);
-    if(dir != NULL){
-      strcpy(dir, newDir);
-      strcat(dir, "/");
-      strcat(dir, args[1]);
-      strcat(dir, "\0");
+    //if(dir != NULL){
+    strcpy(dir, newDir);
+    strcat(dir, "/");
+    strcat(dir, args[1]);
+    strcat(dir, "\0");
       //cout << dir << endl;
-    }
+    //}
+  //write(1, dir, strlen(dir));
   }
   else{
     return;
     //print out errors
   }
   //write(1, dir, strlen(dir));
+  //write(1, "\n", 1);
   // checker to check if right directory
   DIR *lsDir;
   struct dirent *pointFile;
+  cout << dir << endl;
   if((lsDir = opendir(dir)) == NULL){
     write(STDOUT_FILENO, "Cannot open the directory\n", 12);
     exit(0);
@@ -252,9 +287,10 @@ void lsDirectory(char* newDir, char** args){
     write(STDOUT_FILENO, pointFile->d_name, strlen(pointFile->d_name));
     write(STDOUT_FILENO, "\n", 1);
   }//while reading the files/directories inside the directory
-  if(flag = true){
+  if(flag == true){
     delete[] dir;
   }
+  //cout << "finished" << endl;
 }
 
 /*
@@ -272,11 +308,21 @@ void lsDirectory(char* newDir, char** args){
   */
 
 void changeDirectory(char *dir, char **args){
+  //cout << "supposed to be in here" << endl;
   if(args[1] == NULL){
     //then by default, you want to go to home
-    chdir("/home");
+    //cout << "enters here?" << endl;
+    char* home;
+    home = getenv("HOME");
+    if(home == NULL){
+      write(1, "Error\n",6);
+    }
+    //cout << home << endl;
+    chdir(home);
+
   }
   else if (args[2] == NULL){
+    //cout << "here instead." << endl;
     char* newDir = new char[strlen(dir)+ strlen(args[1]) + 2];
     if(newDir != NULL){
       strcpy(newDir, dir);
@@ -284,8 +330,13 @@ void changeDirectory(char *dir, char **args){
       strcat(newDir, args[1]);
       //strcat(newDir, "\0");
     }
+    //cout << "newDir: " << newDir << endl;
     chdir(newDir);
     delete[] newDir;
+  }
+  else{
+    //cout << "error" << endl;
+    return;
   }
 }
 
@@ -333,12 +384,14 @@ void backspace(){
 }
 
 void doCommands(char** args, char* dir, vector<string> history){
+  //cout << "argument: do command: " << args[0] <<"X" << endl;
+  //cout << "doCommands dir: " << dir << endl; 
   if(strcmp(args[0], "history") == 0){
     if(args[1] == NULL){
       getHistory(history);
     }
     else{
-      cout << "hey stop" << endl;
+      //cout << "hey stop" << endl;
       //return an error
     }
   } 
@@ -356,7 +409,9 @@ void doCommands(char** args, char* dir, vector<string> history){
    }
   }
   else if (strcmp(args[0], "ls") == 0){
+    //cout << "goes in here" << endl;
     lsDirectory(dir, args);
+
     // if we get another directory 
   }
   else if(strcmp(args[0], "cd") == 0){
@@ -365,6 +420,7 @@ void doCommands(char** args, char* dir, vector<string> history){
   else{
     execvp(args[0], args);
   }
+  //cout << "return from doCommands: " << endl;
 }
 
 
@@ -375,7 +431,6 @@ int main(){
   SetNonCanonicalMode(STDIN_FILENO, &SavedTermAttributes); 
   int histCount = 0;
   bool readHist = false;
-//  char *readIn;
   string readIn = "";
 //  write(STDOUT_FILENO, dir, strlen(dir));
 
@@ -392,7 +447,6 @@ int main(){
     
     write(STDOUT_FILENO, pathName, strlen(pathName));
     delete[] pathName;
-
 //    free(pathName);
     // cout << "here?" << endl;
 /*
@@ -501,17 +555,90 @@ int main(){
       }// if it's not a character that matters like abc123
     }// finishes readig the stream
 
-    vector<string> listInput = parse(readIn);
+    //cout << "adding stuff to history!  :) " << endl;
+    //cout << readIn << endl;
     if(readIn.size() > 0){
       history.push_back(readIn);
       // add an if statement
       //histCount++;
     }// stores this in history
-
+    //cout << "there's a problem in ListInput " << endl;
     if((int) readIn.size() == 0){
       continue;
     }
+    //cout << "gmorning natty" << endl;
+    //vector<string> listInput = parse(readIn);
+
+
+
+    // this is going to the parsing for us
+    vector<string> listInput;
+    //cout << "listInputsize: " << listInput.size() << endl;
+    int prev = 0;
+    //cout << input << "X" << endl;
+    //cout << input.size() << endl;
+    int sizeInput = readIn.size();
+    //cout << "input size: " << sizeInput << endl;
+    for(int i = 0; i < sizeInput + 1; i++){
+      //cout << "i:" << i << endl;
+      if(i == sizeInput - 1){
+        string temp = readIn.substr(prev, sizeInput-prev);
+        listInput.push_back(temp);
+        //cout << temp << endl;
+      }
+      else if(readIn[i] == ' '){
+        if((readIn[i-1] == '<' || readIn[i-1] == '>' || readIn[i-1] == '|') && i > 0){
+          prev = i + 1;
+        }
+        else{
+          string temp = readIn.substr(prev, i-prev);
+          listInput.push_back(temp);
+          //cout << temp << endl;
+          prev = i+1;  
+        }
+      } // if space
+      else if (readIn[i] == '<' || readIn[i] == '>' || readIn[i] == '|'){
+        if(readIn[i-1] != ' '){
+          string temp = readIn.substr(prev, i-prev);
+          listInput.push_back(temp);
+          //cout << temp << endl;
+          temp = readIn.substr(i, 1);
+          listInput.push_back(temp);
+          //cout << temp << endl;
+          prev = i+1;  
+        }
+        else{
+          string temp = readIn.substr(i, 1);
+          listInput.push_back(temp);
+          //cout << temp << endl;
+          prev = i+1;
+        }
+      } // if redirect or pipe
+      //i++;
+    }
+    //cout << "finishes" << endl;
+    //cout << "parsed String size : " <<listInput.size() << endl;
+    //cout << listInput[0] << endl;
+
+
+  // end of the parsing
+
+
+
+
+
+
+
+
+
+    //vector<string> ourList = parse(readIn);
+
+    //cout << "somethings wrong here" << endl;
+    //vector<string> listInput = parse(readIn);
+    //cout << listInput[0] << endl;
+ 
     readIn = ""; // reset the string
+
     // check if the commands return true, if it returns true
     // then you want to add it into the history
 
@@ -519,127 +646,163 @@ int main(){
     // want to make sure that you are doing redirection 
     // before you do piping.
 
-  /*  
-    while(1){
-
-    }//while the vector of strings isn't empty
-  */
     
   //Piping Area
-    bool commFlag = false;
-    bool isPipe = false;
-    vector<string> children;
-    vector<char*> commands;
-    string primBuffer = "";
-    
+    vector<string> command;
+    int pipefd[2];// 0 for in 1 for out
+    pid_t pid;
+    int status;
     char **args;
-
+    int count = 0; //count keeps track of how many commands are in args
     for(vector<string>::iterator it = listInput.begin(); it != listInput.end(); it++){
       if(*it == "|" || it == listInput.end() - 1){
+        //cout << *it << endl;
         if(it == listInput.end() - 1){
-          char* temp = new char[ (int) (*it).size() + 1];
-          strcpy(temp, (*it).c_str());
-          commands.push_back(temp);
+          //cout << "enters here" << endl;
+          //char* temp = new char[ (int) (*it).size() + 1];
+          //strcpy(temp, (*it).c_str());
+          //commands.push_back(temp);
+          command.push_back(*it);
+          count++;
+          //cout << *it <<"X" << endl;
+          //delete[] temp;
         } // if it's the end, thenw e want to make sure we account for the command
 
+        // check if it's exit or cd 
+
+
+
         if(it != listInput.end() - 1){
-          //pipe(pipe_fd);
+          pipe(pipefd);
         } // want to pipe every time it's not the end
   
+        
 
-        args = new char*[(int)commands.size() + 1];
-        for(int i = 0; i < (int) commands.size() + 1;i++){
-          if(i == (int) commands.size()){
 
-            args[i] = new char[0];
+
+
+
+
+
+        //cout << "size of commands: " << command.size() << endl;
+        args = new char*[(int)command.size() + 1];
+        int sizeOfCommands = (int) command.size();
+        for(int i = 0; i < sizeOfCommands + 1; i++){
+          //cout << "print out I: " << i << endl;
+          if(i == sizeOfCommands){
+            //cout << "stuff" << endl;
+            args[i] = new char;
             args[i] = NULL;
-            doCommands(args, dir, history);
-            // add the bulk of doCommands over here
+            //cout << "main directory: "<<dir << endl;
 
+            //pipe(pipefd);
+            pid = fork();
+
+            if(pid == 0){
+              dup2(pipefd[1], 1);
+              close(pipefd[1]);
+              close(pipefd[0]);
+              doCommands(args, dir, history);
+            }
+            else if (pid < 0){
+              //error
+            }
+            else{
+              dup2(pipefd[1], 1);
+              close(pipefd[1]);
+              close(pipefd[0]);
+              close(1);
+              wait(&status);
+
+            }//parent
+/*
+            for(int i = 0; i < count; i++){
+              if(i == count - 1){
+                //close(in);
+                //close(out);
+                close(pipe[1]);
+                close(pipe[0]);
+                bool deleteFlag = false;
+
+                for(int j = 0; j < count; j++){
+                  if(deleteFlag == false &&  (strcmp(args[j], "<") || strcmp(args[j], ">"))){
+                    deleteFlag = true;
+                    args[j] = NULL;
+                  }
+                  else if (deleteFlag == true){
+                    args[j] = NULL;
+                  }
+                }
+
+
+              }
+              if(strcmp(args[i], "<")){
+                //pipe[0] = args[i+1];
+                pipe[0] = open(args[i+1], O_RDONLY);
+                //dup2(pipe[0], 0);
+              }//in
+              else if(strcmp(args[i], ">")){
+                pipe[1] = open(args[i+1], O_WRONLY | O_TRUNC, O_CREAT, 
+                  S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+                //dup2(pipe[1], 1);
+              }//out
+            }
+
+            if(pid == 0){
+              if(pipe[0] != -1){
+                // then you dup it.
+                dup2(pipe[0], 0);
+              }
+              if(pipe[1] != -1){
+                dup2(pipe[1], 1);
+              }
+              doCommands(args, dir, history);
+              close(pipe[0]);
+              close(pipe[1]);
+
+            }*/
+
+
+
+
+
+            //doCommands(args, dir, history);
           }
           else{
-            //cout << "commands" <<  commands[i] << endl;
-            args[i] = commands[i];
-            //args[i] = NULL;
+            //cout << "other things" << endl;
+            args[i] = new char[(int) command[i].size() + 1];
+            strcpy(args[i], command[i].c_str());
           }
-          
-
         }
-        // want to free the arguments over here
-        for(int i = (int) commands.size() - 1; i >=0; i--){
-          delete args[i];
+        // want to delete/free/deallocate the arguments over here
+        for(int i = (int) command.size() - 1; i >=0; i--){
+          delete[] args[i];
         }
         delete[] args;
-
+        //cout << "clears out the vector " << endl;
+        command.clear();
+        //cout << "actually. it didn't clear out " << endl;
         // do the piping stuff over here
-
-        //doCommands(args, dir, history);
 //        write(1, "enters here\n", strlen("enters here\n"));
         //clear out the vector
-        //commands.clear();
-        //perform 
-        //break;
-        //isPipe = true;
+
       }
       else{
-        char* temp = new char[ (int) (*it).size() + 1];
+        /*char* temp = new char[ (int) (*it).size() + 1];
         strcpy(temp, (*it).c_str());
-
-        commands.push_back(temp);
+*/
+        //command.push_back(temp);
+        command.push_back(*it);
+        count++;
+        //cout << "temp: " << temp << endl;
+        //delete[] temp;
       }
       //cout << *it<< "X" << endl;
     }
-  /*
-    if(isPipe == false){
-      args = new char*[(int) listInput.size() + 1];
-      //cout << "input size? " << listInput.size() << endl;
-      for(int i = 0; i < (int) listInput.size() + 1; i++){
-        if(i == (int) listInput.size()){
-          args[i] = new char[0];
-          args[i] = NULL; 
-          //cout << "setting NULL" << i << endl;
-        }
-        else{
-          args[i] = new char[ (int) listInput[i].size() + 1];
-          strcpy(args[i], listInput[i].c_str());  
-        }
-      }
-      doCommands(args, dir, history);
-//      write(1, "enters here\n", strlen("enters here\n"));
-    }
-    else{
-      // for loop to fork a certain # of times.
-      int pipe_fd[2];
-      int pid; 
-    }*/
-      //pipe(pipe_fd);
-      //pid = fork();
-      //cout << "pid" << pid << endl;
-
-      /*
-      if(pid == 0){
-        close(0);
-        dup(pipe_fd[0]);
-        //cout << pipe_fd << endl;
-        close(pipe_fd[0]);
-        close(pipe_fd[1]);
-        // if commands
-        // else exec
-      }
-      else if (pid < 0){
-        //write(STDOUT_ERR);
-      }
-      else{
-        close(1);
-        dup(pipe_fd[1]);
-        close(pipe_fd[0]);
-        close(pipe_fd[1]);
-        int status;
-        close(1);
-        wait(&status);
-      }
-      */
-    
+  
+    listInput.clear();
+    //delete dir;
+    //cout << "going to restart now" << endl;
     // delete the arguments that were created
   }//continue running the program
 
