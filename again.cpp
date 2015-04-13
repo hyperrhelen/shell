@@ -158,6 +158,9 @@ vector<string> parse(string input){
 }
 
 void lsDirectory(char* newDir, char** args){
+  //cerr << "LS" << endl;
+  //cerr << newDir << endl;
+  //cerr << "args: " << args[1] << endl;
   char* dir;
   int flag = false;
   if(args[0] == NULL){
@@ -192,7 +195,7 @@ void lsDirectory(char* newDir, char** args){
   // checker to check if right directory
   DIR *lsDir;
   struct dirent *pointFile;
-  cout << dir << endl;
+  //cout << dir << endl;
   if((lsDir = opendir(dir)) == NULL){
     write(STDOUT_FILENO, "Cannot open the directory\n", 12);
     exit(0);
@@ -384,15 +387,13 @@ void backspace(){
 }
 
 void doCommands(char** args, char* dir, vector<string> history){
-  //cout << "argument: do command: " << args[0] <<"X" << endl;
-  //cout << "doCommands dir: " << dir << endl; 
+ 
   if(strcmp(args[0], "history") == 0){
     if(args[1] == NULL){
       getHistory(history);
     }
     else{
-      //cout << "hey stop" << endl;
-      //return an error
+      write(1, "ERROR\n", 6);
     }
   } 
   else if(strcmp(args[0], "exit") == 0){
@@ -420,7 +421,8 @@ void doCommands(char** args, char* dir, vector<string> history){
   else{
     execvp(args[0], args);
   }
-  //cout << "return from doCommands: " << endl;
+  exit(0);
+
 }
 
 
@@ -432,6 +434,7 @@ int main(){
   int histCount = 0;
   bool readHist = false;
   string readIn = "";
+  vector<int> pids;
 //  write(STDOUT_FILENO, dir, strlen(dir));
 
   while(1){
@@ -566,10 +569,6 @@ int main(){
     if((int) readIn.size() == 0){
       continue;
     }
-    //cout << "gmorning natty" << endl;
-    //vector<string> listInput = parse(readIn);
-
-
 
     // this is going to the parsing for us
     vector<string> listInput;
@@ -616,26 +615,7 @@ int main(){
       } // if redirect or pipe
       //i++;
     }
-    //cout << "finishes" << endl;
-    //cout << "parsed String size : " <<listInput.size() << endl;
-    //cout << listInput[0] << endl;
 
-
-  // end of the parsing
-
-
-
-
-
-
-
-
-
-    //vector<string> ourList = parse(readIn);
-
-    //cout << "somethings wrong here" << endl;
-    //vector<string> listInput = parse(readIn);
-    //cout << listInput[0] << endl;
  
     readIn = ""; // reset the string
 
@@ -651,39 +631,37 @@ int main(){
     vector<string> command;
     int pipefd[2];// 0 for in 1 for out
     pid_t pid;
-    int status;
+    //int status;
     char **args;
+    /*bool first = false;
+    bool middle = false;
+    bool end = false;
+    */
+    //bool alMouth = false;
+    int prevInPipe = -1;
+    bool start = true;
+    bool end = false;
+    //int numOfPipes = 0;
     int count = 0; //count keeps track of how many commands are in args
+    int in, out;
+    char** nPtr;
+    //int j = 0;
     for(vector<string>::iterator it = listInput.begin(); it != listInput.end(); it++){
       if(*it == "|" || it == listInput.end() - 1){
+
         //cout << *it << endl;
         if(it == listInput.end() - 1){
-          //cout << "enters here" << endl;
-          //char* temp = new char[ (int) (*it).size() + 1];
-          //strcpy(temp, (*it).c_str());
-          //commands.push_back(temp);
           command.push_back(*it);
           count++;
-          //cout << *it <<"X" << endl;
-          //delete[] temp;
+          end = true;
         } // if it's the end, thenw e want to make sure we account for the command
 
         // check if it's exit or cd 
-
-
 
         if(it != listInput.end() - 1){
           pipe(pipefd);
         } // want to pipe every time it's not the end
   
-        
-
-
-
-
-
-
-
         //cout << "size of commands: " << command.size() << endl;
         args = new char*[(int)command.size() + 1];
         int sizeOfCommands = (int) command.size();
@@ -694,116 +672,138 @@ int main(){
             args[i] = new char;
             args[i] = NULL;
             //cout << "main directory: "<<dir << endl;
-
-            //pipe(pipefd);
-            pid = fork();
-
-            if(pid == 0){
-              dup2(pipefd[1], 1);
-              close(pipefd[1]);
-              close(pipefd[0]);
-              doCommands(args, dir, history);
-            }
-            else if (pid < 0){
-              //error
+            if(strcmp(args[0], "cd") == 0){
+                changeDirectory(dir, args);
+                //doCommands(args, dir, history);
+              }
+            else if (strcmp(args[0], "exit") == 0){
+              exit(0);
             }
             else{
-              dup2(pipefd[1], 1);
-              close(pipefd[1]);
-              close(pipefd[0]);
-              close(1);
-              wait(&status);
 
-            }//parent
-/*
-            for(int i = 0; i < count; i++){
-              if(i == count - 1){
-                //close(in);
-                //close(out);
-                close(pipe[1]);
-                close(pipe[0]);
-                bool deleteFlag = false;
+              pid = fork();
+              //cerr << "HERE?OIjfoeiwjpaf" << endl;
+              if (pid < 0){
+                write(1, "Error\n", 6);
+              }
+              else if(pid == 0){
+                //cerr << "CHILD" << endl;
+                nPtr = new char*[(int)command.size() + 1];
+                int counting = 0;
+                for(int j = 0; j < count + 1; j++){
+                  //cerr << "J: " << j << endl;
+                  if(args[j] == NULL){
+                    nPtr[counting] = new char;
+                    nPtr[counting] = NULL;
+                    counting++;
+                  }
+                  else if(strcmp(args[j], "<") == 0){
+                    in = open(command[j+1].c_str(), O_RDONLY);
+                    dup2(in, STDIN_FILENO);
+                    close(in);
+                    j++;
+                  }
+                  else if (strcmp(args[j], ">") == 0){
+                    out = open(command[j+1].c_str(), O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+                    dup2(out, STDOUT_FILENO);
+                    close(out);
+                    j++;
+                  }
+                  else{
+                    nPtr[counting] = new char[strlen(args[j]+1)];
+                    nPtr[counting] = args[j];
+                    //cerr << nPtr[counting] << endl;
+                    //j++;
+                    counting++;
+                  }
 
-                for(int j = 0; j < count; j++){
-                  if(deleteFlag == false &&  (strcmp(args[j], "<") || strcmp(args[j], ">"))){
-                    deleteFlag = true;
-                    args[j] = NULL;
-                  }
-                  else if (deleteFlag == true){
-                    args[j] = NULL;
-                  }
                 }
 
+                //cerr << "???" << endl;
+                
+                
+                if(end == true){
+                  //cerr << "HERE" << endl;
+                  if(prevInPipe != -1 ){
+                    dup2(prevInPipe, STDIN_FILENO);
+                    close(pipefd[0]);
+                    close(pipefd[1]);  
+                  }
+                } // end close
 
+                else if(prevInPipe == -1){
+                  dup2(pipefd[1], STDOUT_FILENO);
+                  close(pipefd[1]);
+                  close(pipefd[0]);
+                } // start
+                else{
+                  dup2(prevInPipe, STDIN_FILENO);
+                  dup2(pipefd[1], STDOUT_FILENO);
+                  close(pipefd[1]);
+                  close(pipefd[0]);
+                } // if it's the middle one
+                //cerr << "before do command" << endl;
+                doCommands(nPtr, dir, history);
+                //cerr << "inside the child " << endl;
               }
-              if(strcmp(args[i], "<")){
-                //pipe[0] = args[i+1];
-                pipe[0] = open(args[i+1], O_RDONLY);
-                //dup2(pipe[0], 0);
-              }//in
-              else if(strcmp(args[i], ">")){
-                pipe[1] = open(args[i+1], O_WRONLY | O_TRUNC, O_CREAT, 
-                  S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
-                //dup2(pipe[1], 1);
-              }//out
+  
+              else{
+                pids.push_back(pid);
+              } // parent 
+            
+              if(start == true){
+                start = false;
+                close(pipefd[1]);
+              } // at beginning
+              else if(end == true){
+                close(prevInPipe);
+              } // on the right
+              else{
+
+                close(pipefd[1]);
+                close(prevInPipe);
+              } // in the middle
+              prevInPipe = pipefd[0];
+
             }
-
-            if(pid == 0){
-              if(pipe[0] != -1){
-                // then you dup it.
-                dup2(pipe[0], 0);
-              }
-              if(pipe[1] != -1){
-                dup2(pipe[1], 1);
-              }
-              doCommands(args, dir, history);
-              close(pipe[0]);
-              close(pipe[1]);
-
-            }*/
-
-
-
-
-
-            //doCommands(args, dir, history);
           }
           else{
-            //cout << "other things" << endl;
             args[i] = new char[(int) command[i].size() + 1];
             strcpy(args[i], command[i].c_str());
+
           }
         }
         // want to delete/free/deallocate the arguments over here
         for(int i = (int) command.size() - 1; i >=0; i--){
           delete[] args[i];
+
+          //delete[] nPtr[i];
+          //delete[] nPtr[i];
         }
         delete[] args;
-        //cout << "clears out the vector " << endl;
-        command.clear();
-        //cout << "actually. it didn't clear out " << endl;
-        // do the piping stuff over here
-//        write(1, "enters here\n", strlen("enters here\n"));
-        //clear out the vector
+        //delete[] nPtr;
+        //for(int i = (int) counting -)
+        //delete[] nPtr;
 
+        command.clear();
+        count = 0;
+        //j = 0;
       }
       else{
-        /*char* temp = new char[ (int) (*it).size() + 1];
-        strcpy(temp, (*it).c_str());
-*/
-        //command.push_back(temp);
+
+        //vector
         command.push_back(*it);
         count++;
-        //cout << "temp: " << temp << endl;
-        //delete[] temp;
       }
       //cout << *it<< "X" << endl;
     }
-  
+    
+    for(int ch = 0; ch < (int) pids.size(); ch++){
+      waitpid(pids[ch], NULL, 0);
+      //wait(&pids[i]);
+    }
+
     listInput.clear();
-    //delete dir;
-    //cout << "going to restart now" << endl;
-    // delete the arguments that were created
   }//continue running the program
 
   return 0;
