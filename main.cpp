@@ -1,25 +1,33 @@
-// Helen Chac && Nathan Truong
-// Writing a basic shell. 
+// Helen Chac
+// Writing a basic shell that takes in command line commands.
+// Some commands that it can take in is:
+//  - pwd
+//      Prints the current directory.
+//  - cd [directory]
+//      Changes into the directory.
+//  - ls [directory]
+//      Lists all the files and attributes in the directory.
+//  Also accounts for piping and redirction. 
+// Example:
+// cat file.txt > file2.txt
+// If we diff both file.txt and file2.txt, we will find that they are both
+// identical.
 
-
-#include <iostream>
-// This is a unix library and can get current directory??
-#include <unistd.h>
-// This library allows us to get the directories
-#include <dirent.h>
 #include <cstring>
-#include <string>
-#include <termios.h>
-#include <ctype.h>
-#include <vector>
-//#include <list>
-//#include <stdlib.h>
 #include <cstdlib>
+#include <ctype.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcnt1.h>
+#include <iostream>
+#include <list>
+#include <string>
 #include <sys/stat.h>
-#include <sys/types.h> // /not sure what this is used for
-#include <sys/wait.h> // not sure what this is used for yet
-#include <errno.h> // not sure what this is ued for yet either
-#include <fcntl.h>  //for opening the file
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <termios.h>
+#include <unistd.h>
+#include <vector>
 
 using namespace std;
 
@@ -29,13 +37,10 @@ void ResetCanonicalMode(int fd, struct termios *savedattributes){
 
 void SetNonCanonicalMode(int fd, struct termios *savedattributes){
     struct termios TermAttributes;
- //   char *name;
-    
     // Make sure stdin is a terminal. 
     if(!isatty(fd)){
-// want to print an error with write
+          // want to print an error with write
           write(2, "Not a terminal\n", 15);
-//        fprintf (stderr, "Not a terminal.\n");
         return;
     }
     // Save the terminal attributes so we can restore them later. 
@@ -47,6 +52,25 @@ void SetNonCanonicalMode(int fd, struct termios *savedattributes){
     TermAttributes.c_cc[VMIN] = 1;
     TermAttributes.c_cc[VTIME] = 0;
     tcsetattr(fd, TCSAFLUSH, &TermAttributes);
+}
+
+// Returns the working directory.
+string getPath(char* dirName){
+  string pathName = "";
+  string dir = (string)dirName;
+  int length = strlen(dirName);
+  if(length < 16){
+    pathName = dir + "> \0";
+  }
+  else{
+    for(int j = length - 1; j > 0; j--){
+      if(dirName[j] == '/'){
+        pathName = "/..." + dir.substr(j, length - j) + "> \0";
+        break;
+      }
+    }
+  }
+  return pathName;
 }
 
 char* path(char* dirName){
@@ -71,12 +95,15 @@ char* path(char* dirName){
   return name;
 }
 
+// Parses out the command the user enters into tokens separated by spaces,
+// pipes or redirecting arrows.
 vector<string> parse(string input){
   vector<string> parsedString;
   int prev = 0;
-  for(int i = 0; i < (int) input.size(); i++){
-    if(i == (int) input.size() - 1){
-      string temp = input.substr(prev, (int)input.size()-prev );
+  int sizeInput = input.size();
+  for(int i = 0; i < sizeInput + 1; i++){
+    if(i == sizeInput - 1){
+      string temp = input.substr(prev, sizeInput-prev);
       parsedString.push_back(temp);
     }
     else if(input[i] == ' '){
@@ -107,34 +134,38 @@ vector<string> parse(string input){
   return parsedString; 
 }
 
+// Lists all the files that are in the specified directory.
 void lsDirectory(char* newDir, char** args){
   char* dir;
+  int flag = false;
+  if(args[0] == NULL){
+    return;
+  }
   if(args[1] == NULL){
-    // then you're doing it right
     dir = newDir;
   }
   else if(args[2] == NULL){
+    flag = true;
     //this is going to be the directory name
-    //dir = newDir;
     dir = new char(strlen(newDir) + strlen(args[1])+2);
-    if(dir != NULL){
-      strcpy(dir, newDir);
-      strcat(dir, "/");
-      strcat(dir, args[1]);
-      strcat(dir, "\0");
-      //cout << dir << endl;
-    }
+    strcpy(dir, newDir);
+    strcat(dir, "/");
+    strcat(dir, args[1]);
+    strcat(dir, "\0");
   }
   else{
     return;
-    //print out errors
   }
+
+  // Checks to see if we're in the correct directory.
   DIR *lsDir;
   struct dirent *pointFile;
   if((lsDir = opendir(dir)) == NULL){
-    write(STDOUT_FILENO, "Cannot open the directory", 11);
+    write(STDOUT_FILENO, "Cannot open the directory\n", 12);
     exit(0);
   }
+  // Checks the permissions of all the files in the directory and correctly 
+  // outputs them.
   while((pointFile = readdir(lsDir)) != NULL){
     struct stat statFile;
     stat(pointFile->d_name, &statFile);
@@ -221,10 +252,12 @@ void lsDirectory(char* newDir, char** args){
     }
 
     write(STDOUT_FILENO, " ", 1);
-    //prints out the files name
     write(STDOUT_FILENO, pointFile->d_name, strlen(pointFile->d_name));
     write(STDOUT_FILENO, "\n", 1);
-  }//while reading the files/directories inside the directory
+  } 
+  if(flag == true){
+    delete[] dir;
+  }
 }
 
 /*
@@ -239,12 +272,19 @@ void lsDirectory(char* newDir, char** args){
 
   If it has more than two parameters, you want to detect it and return
   an exception/error and tell the user that it wasn't a valid action
-  */
+*/
 
 void changeDirectory(char *dir, char **args){
   if(args[1] == NULL){
-    //then by default, you want to go to home
-    chdir("/home");
+    // By default, if there isn't a path that the user specifies, then
+    // redirects to home.
+    char* home;
+    home = getenv("HOME");
+    if(home == NULL){
+      write(1, "Error\n",6);
+    }
+    chdir(home);
+
   }
   else if (args[2] == NULL){
     char* newDir = new char[strlen(dir)+ strlen(args[1]) + 2];
@@ -252,24 +292,29 @@ void changeDirectory(char *dir, char **args){
       strcpy(newDir, dir);
       strcat(newDir, "/");
       strcat(newDir, args[1]);
-      //strcat(newDir, "\0");
     }
     chdir(newDir);
-    free(newDir);
+    delete[] newDir;
+  }
+  else{
+    return;
   }
 }
 
-/* 
-  Prints out the working directory. It will get the current directory
-  that it's in. It's passed in because we calculate for it.
-  */
+ 
+// Prints out the working directory. It will get the current directory
+// that it's in. It's passed in because we calculate for it.
 void printWorkingDirectory(){
   char *dir = get_current_dir_name();
   write(STDOUT_FILENO, dir, strlen(dir));
   write(STDOUT_FILENO, "\n", 1);
-  free(dir);
 }
 
+void terminate(){
+  exit(0);
+}
+
+// Returns the last 10 commands that were entered in the command line.
 void getHistory(vector<string> history){
   int sHistory = history.size();
   int tenLess; 
@@ -281,14 +326,15 @@ void getHistory(vector<string> history){
   }
   char firstNext = '0';
   for (int i = tenLess; i < sHistory; i++){
-      char* memHist = new char[sHistory +1];
-      strcpy(memHist, history[i].c_str());
+    char* memHist = new char[sHistory +1];
+    strcpy(memHist, history[i].c_str());
       
-      write(STDOUT_FILENO, &firstNext, 1);
-      write(STDOUT_FILENO, " ", 1);
-      write(STDOUT_FILENO, memHist, strlen(memHist));
-      write(STDOUT_FILENO, "\n", 1);
-      firstNext++;
+    write(STDOUT_FILENO, &firstNext, 1);
+    write(STDOUT_FILENO, " ", 1);
+    write(STDOUT_FILENO, memHist, strlen(memHist));
+    write(STDOUT_FILENO, "\n", 1);
+    firstNext++;
+    delete[] memHist;
   }
 } //print the last 10 inputted
 
@@ -296,52 +342,42 @@ void backspace(){
   write(STDIN_FILENO, "\b \b", 3);
 }
 
+// Redirects the commands to the associated function to do the command.
 void doCommands(char** args, char* dir, vector<string> history){
-  //cout << "in the command function" << endl;
-  //cout << args[0] << endl;
   if(strcmp(args[0], "history") == 0){
     if(args[1] == NULL){
       getHistory(history);
     }
     else{
-      write(STDOUT_FILENO, "error", 5);
-      //cout << "hey stop" << endl;
-      //return an error
+      write(1, "ERROR\n", 6);
     }
   } 
-  /*
   else if(strcmp(args[0], "exit") == 0){
     if(args[1] == NULL){
       exit(0);
     }
-  }*/
+  }
   else if (strcmp(args[0], "pwd") == 0){
-   if(args[1] == NULL){
-     printWorkingDirectory();
-   }
-   else{
-    //print out an error
-   }
+    if(args[1] == NULL){
+      printWorkingDirectory();
+    }
+    else{
+      // Print out an error.
+    }
   }
-  
   else if (strcmp(args[0], "ls") == 0){
-    //cout << "in ls" << endl;
     lsDirectory(dir, args);
-
-    // if we get another directory 
   }
-  /*
   else if(strcmp(args[0], "cd") == 0){
     changeDirectory(dir, args);
-  }*/
+  }
   else{
     execvp(args[0], args);
   }
-  //cout << "end of the commands " << endl;
-  //exit(1);
+  exit(0);
 }
 
-
+// Main chunk of the program which it begins execution upon.
 int main(){
   struct termios SavedTermAttributes;
   vector<string> history;
@@ -350,51 +386,62 @@ int main(){
   int histCount = 0;
   bool readHist = false;
   string readIn = "";
+  vector<int> pids;
 
   while(1){
     char *dir = get_current_dir_name(); 
-    char *pathName = path(dir); 
-    write(STDOUT_FILENO, pathName, strlen(pathName)); 
+    string pathString = getPath(dir);
+    char* pathName = new char[(int) pathString.size() + 1];
+    strcpy(pathName, pathString.c_str());
+    
+    write(STDOUT_FILENO, pathName, strlen(pathName));
+    delete[] pathName;
+
     bool prevClickedUp = false;
     while(1){
       read(STDIN_FILENO, &RXChar, 1);
       if(0x04 == RXChar){
         exit(0);
-      }// if ctrl+C or ctrl+D then you end the program
+      } // if ctrl+C or ctrl+D then you end the program.
       else{
-        //cout << "RXChar: " << RXChar << endl; 
         if(0x1B == RXChar){
           read(STDIN_FILENO, &RXChar, 1);
           if(0x5B == RXChar){
             read(STDIN_FILENO, &RXChar, 1);
             if(0x41 == RXChar){
-              if(prevClickedUp == false){
-                histCount = (int) history.size();
-                prevClickedUp = true;
-              }
-              for(int i = 0; i < (int) readIn.size(); i++){
-               write(STDOUT_FILENO, "\b \b", 3); 
-              } 
-              readIn = "";
-              if(readHist == true){
-                if(histCount == 0){
-                  // we don't have to do anything here
-                }
-                else{ 
-                  histCount--;
-                }
+              if(prevClickedUp == false && (int) history.size() == 0){
+                // Then we don't do anything.
               }
               else{
-                readHist = true;
-                if(histCount != 0){
-                  histCount = (int) history.size() - 1;
+                if(prevClickedUp == false ){
+                  histCount = (int) history.size();
+                  prevClickedUp = true;
                 }
+                for(int i = 0; i < (int) readIn.size(); i++){
+                 write(STDOUT_FILENO, "\b \b", 3); 
+                } 
+                readIn = "";
+                if(readHist == true){
+                  if(histCount == 0){
+                    // we don't have to do anything here
+                  }
+                  else{ 
+                    histCount--;
+                  }
+                }
+                else{
+                  readHist = true;
+                  if(histCount != 0){
+                    histCount = (int) history.size() - 1;
+                  }
+                }
+                readIn = history[histCount];
+                char* printOut = new char[ (int) readIn.size() + 1];
+                strcpy(printOut, history[histCount].c_str());
+                write(STDOUT_FILENO, printOut, strlen(printOut)); 
+                delete[] printOut; 
+                //clears out the readIn string completely
               }
-              readIn = history[histCount];
-              char* printOut = new char[ (int) readIn.size() + 1];
-              strcpy(printOut, history[histCount].c_str());
-              write(STDOUT_FILENO, printOut, strlen(printOut));  
-              //clears out the readIn string completely
             }
             else if (0x42 == RXChar){
               if(prevClickedUp == true){
@@ -414,7 +461,8 @@ int main(){
                     readIn = history[histCount];
                     char* printOut = new char[ (int) readIn.size() + 1];
                     strcpy(printOut, history[histCount].c_str());
-                    write(STDOUT_FILENO, printOut, strlen(printOut));  
+                    write(STDOUT_FILENO, printOut, strlen(printOut)); 
+                    delete[] printOut; 
                   }                 
                 }
                 // then you want to go down in history
@@ -441,177 +489,207 @@ int main(){
             if(readIn != ""){
               readIn = readIn.substr(0, readIn.size()-1);
               write(STDOUT_FILENO, "\b \b", 3);
-            } // if it's not an empty string then you want to delete ( backspace)
+            }
             else{
               write(STDOUT_FILENO, "\a", 1);
-            } // creates the bell sound
+            }
           }//prints backspace
         }//else accounts for the esc button and the eneter key
       }// if it's not a character that matters like abc123
     }// finishes readig the stream
 
-    vector<string> listInput = parse(readIn);
     if(readIn.size() > 0){
       history.push_back(readIn);
-      // add an if statement
-      //histCount++;
     }// stores this in history
-
     if((int) readIn.size() == 0){
       continue;
     }
+
+    // this is going to the parsing for us
+    vector<string> listInput;
+    int prev = 0;
+    int sizeInput = readIn.size();
+    for(int i = 0; i < sizeInput + 1; i++){
+      if(i == sizeInput - 1){
+        string temp = readIn.substr(prev, sizeInput-prev);
+        listInput.push_back(temp);
+      }
+      else if(readIn[i] == ' '){
+        if((readIn[i-1] == '<' || readIn[i-1] == '>' || readIn[i-1] == '|') && i > 0){
+          prev = i + 1;
+        }
+        else{
+          string temp = readIn.substr(prev, i-prev);
+          listInput.push_back(temp);
+          prev = i+1;  
+        }
+      } // if space
+      else if (readIn[i] == '<' || readIn[i] == '>' || readIn[i] == '|'){
+        if(readIn[i-1] != ' '){
+          string temp = readIn.substr(prev, i-prev);
+          listInput.push_back(temp);
+          temp = readIn.substr(i, 1);
+          listInput.push_back(temp);
+          prev = i+1;  
+        }
+        else{
+          string temp = readIn.substr(i, 1);
+          listInput.push_back(temp);
+          prev = i+1;
+        }
+      } // if redirect or pipe
+    } // for
+
+ 
     readIn = ""; // reset the string
-    // check if the commands return true, if it returns true
+
+    // Check if the commands return true, if it returns true
     // then you want to add it into the history
 
     // want to check how many pipes to make
     // want to make sure that you are doing redirection 
     // before you do piping.
 
-    //Piping Area
-    //bool commFlag = false;
-    //bool isPipe = false;
-    vector<string> children;
-    vector<char*> commands;
-    string primBuffer = "";
     
+    //Piping Area
+    vector<string> command;
+    int pipefd[2];// 0 for in 1 for out
+    pid_t pid;
     char **args;
-
-    int pipe_fd[2]; // pipe and their location will get put here
-    pid_t pid; // The Process ID (child or parent)
+    
+    int prevInPipe = -1;
+    bool start = true;
+    bool end = false;
+    int count = 0; //count keeps track of how many commands are in args
+    int in, out;
+    char** nPtr;
 
     for(vector<string>::iterator it = listInput.begin(); it != listInput.end(); it++){
       if(*it == "|" || it == listInput.end() - 1){
+        // If it's the end, we want to make sure we account for the command.
         if(it == listInput.end() - 1){
-          char* temp = new char[ (int) (*it).size() + 1];
-          strcpy(temp, (*it).c_str());
-          commands.push_back(temp);
-        }
+          command.push_back(*it);
+          count++;
+          end = true;
+        } 
+
         if(it != listInput.end() - 1){
-          pipe(pipe_fd);
+          pipe(pipefd);
         } // want to pipe every time it's not the end
   
-        args = new char*[(int)commands.size() + 1];
-        for(int i = 0; i < (int) commands.size() + 1; i++){
-          if(i == (int) commands.size()){
-            args[i] = new char[0];
+        args = new char*[(int)command.size() + 1];
+        int sizeOfCommands = (int) command.size();
+        for(int i = 0; i < sizeOfCommands + 1; i++){
+          if(i == sizeOfCommands){
+            args[i] = new char;
             args[i] = NULL;
-
             if(strcmp(args[0], "cd") == 0){
-              changeDirectory(dir, args);
-            } 
+                changeDirectory(dir, args);
+              }
             else if (strcmp(args[0], "exit") == 0){
               exit(0);
             }
-            // check to see if there's any redirection
-
-            pid = fork();   
-            //pipe(pipe_fd);
-            if(pid == 0){
-              //dup2(pipe_fd[1], 1);
-              //close(pipe_fd[1]); // close the write end, so not allowed to write
-              /*dup2(1, pipe_fd[0]);
-              close(pipe_fd[0]);
-              close(pipe_fd[1]);*/
-              //cout << "child " << pid << endl;
-              
-              /*close(0);
-              dup2(pipe_fd[0], 0);
-              close(pipe_fd[0]);
-              close(pipe_fd[1]);
-              */
-              /*
-              dup2(STDIN_FILENO, pipe_fd[0]);
-              close(pipe_fd[0]);
-              close(pipe_fd[1]);
-              */
-              doCommands(args, dir, history); 
-              /*close(0);
-              close(1);*/
-              //cout << "Helloooo" << endl;
-              /*close(0);
-              close(1); */
-              //exit(1);
-              //exit(0);
-              //close(pipe_fd[0]);
-            }
-            else if(pid < 0){
-              write(STDOUT_FILENO, "error\n" , 6);
-            }//error
             else{
-              //cout << "parent " << pid << endl;
-              /*close(1);
-              dup(pipe_fd[1]);
-              close(pipe_fd[0]);
-              close(pipe_fd[1]);
-              */
-              /*
-              close(pipe_fd[0]);
-              close(pipe_fd[1]);
-              */
-              //write(STDOUT_FILENO, )
-              //close(pipe_fd[0]); // closing the read end
-              int status;
-              
-              //wait(&status);
-              /*do{
-                
-                cout << "wait-status: " << wait(&status) << endl;
-                cout << "status: " << status << endl;
-                cout << "pid: " << pid << endl;
-              }while(status != 0);
-              */
+              pid = fork();
+              if (pid < 0){
+                write(1, "Error\n", 6);
+              }
+              else if(pid == 0){
+                nPtr = new char*[(int)command.size() + 1];
+                int counting = 0;
+                for(int j = 0; j < count + 1; j++){
+                  if(args[j] == NULL){
+                    nPtr[counting] = new char;
+                    nPtr[counting] = NULL;
+                    counting++;
+                  }
+                  else if(strcmp(args[j], "<") == 0){
+                    in = open(command[j+1].c_str(), O_RDONLY);
+                    dup2(in, STDIN_FILENO);
+                    close(in);
+                    j++;
+                  }
+                  else if (strcmp(args[j], ">") == 0){
+                    out = open(command[j+1].c_str(), O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IRGRP | S_IWGRP | S_IWUSR);
+                    dup2(out, STDOUT_FILENO);
+                    close(out);
+                    j++;
+                  }
+                  else{
+                    nPtr[counting] = new char[strlen(args[j]+1)];
+                    nPtr[counting] = args[j];
+                    counting++;
+                  }
 
-              //while(wait(&status) && status != pid);
-              
-              wait(&status);
-              //close(1);
-              //cout << "done waiting" << endl;
-              //continue;
-              //close(pipe_fd[1]);
-//              dup2(0, pipe_fd[1]);
-/*
-              close(pipe_fd[0]);
-              close(pipe_fd[1]);
-  */            
-              continue;
-            }//parent
+                }
+
+                if(end == true){
+                  if(prevInPipe != -1 ){
+                    dup2(prevInPipe, STDIN_FILENO);
+                    close(pipefd[0]);
+                    close(pipefd[1]);  
+                  }
+                } // end close
+
+                else if(prevInPipe == -1){
+                  dup2(pipefd[1], STDOUT_FILENO);
+                  close(pipefd[1]);
+                  close(pipefd[0]);
+                } // start
+                else{
+                  dup2(prevInPipe, STDIN_FILENO);
+                  dup2(pipefd[1], STDOUT_FILENO);
+                  close(pipefd[1]);
+                  close(pipefd[0]);
+                } // if it's the middle one
+                doCommands(nPtr, dir, history);
+              }
+  
+              else{
+                pids.push_back(pid);
+              } // parent 
             
+              if(start == true){
+                start = false;
+                close(pipefd[1]);
+              } // at beginning
+              else if(end == true){
+                close(prevInPipe);
+              } // on the right
+              else{
+
+                close(pipefd[1]);
+                close(prevInPipe);
+              } // in the middle
+              prevInPipe = pipefd[0];
+
+            }
           }
           else{
-            //cout << "here ? " << endl;
-            args[i] = commands[i];
+            args[i] = new char[(int) command[i].size() + 1];
+            strcpy(args[i], command[i].c_str());
+
           }
         }
-
-        //clear out the vector
-        for(int i = (int) commands.size()-1; i >= 0; i--){
-          free(args[i]);
-          //args[i].free();
+        // want to delete/free/deallocate the arguments over here
+        for(int i = (int) command.size() - 1; i >=0; i--){
+          delete[] args[i];
         }
-        free(args);
-        //args.free();
-        commands.clear();
-        //perform 
-        //break;
-        //isPipe = true;
+        delete[] args;
+        command.clear();
+        count = 0;
       }
       else{
-        //cout << *it<< "X" << endl;
-        char* temp = new char[ (int) (*it).size() + 1];
-        strcpy(temp, (*it).c_str());
-        //cout <<"temp, what command?: " <<  temp << endl;
-        //cout << "commands: " << commands[0] << endl;
-        // just want to push the commands back 
-        // commands store all the commands
-        //cout << "size of command" <<  commands.size() << endl;
-        commands.push_back(temp);
-        //cout << "size after " << commands.size() << endl;
-        //cout << "pushback item: " << commands[(int) commands.size() - 1] << endl;
-
+        command.push_back(*it);
+        count++;
       }
-      
     }
+    
+    for(int ch = 0; ch < (int) pids.size(); ch++){
+      waitpid(pids[ch], NULL, 0);
+    }
+
+    listInput.clear();
   }//continue running the program
 
   return 0;
